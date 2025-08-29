@@ -2,12 +2,8 @@ streamlit
 
 pandas
 
-selenium
-
-webdriver-manager
-
-Pillow
-
 requests
 
 beautifulsoup4
+
+Pillow

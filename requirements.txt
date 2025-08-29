@@ -1,9 +1,11 @@
 streamlit
 
-google-api-python-client
-
 pandas
 
 requests
 
+beautifulsoup4
+
 Pillow
+
+lxml

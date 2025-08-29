@@ -2,10 +2,12 @@ streamlit
 
 pandas
 
-requests
+selenium
 
-beautifulsoup4
+webdriver-manager
 
 Pillow
 
-lxml
+requests
+
+beautifulsoup4

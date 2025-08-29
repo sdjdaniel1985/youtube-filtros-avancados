@@ -396,7 +396,10 @@ with tab1:
             index=0
         )
     
-    if st.button("🕷️ SCRAPE TRENDING AGORA!", type="primary"):
+    # Botão único para trending
+    scrape_trending = st.button("🕷️ SCRAPE TRENDING AGORA!", type="primary", key="trending_button")
+    
+    if scrape_trending:
         with st.spinner('🔄 Fazendo scraping da página de trending...'):
             trending_videos = scraper.scrape_trending_page(category[1])
             
@@ -446,14 +449,15 @@ with tab1:
                         """, unsafe_allow_html=True)
                     
                     # Export
-                    if st.button("📥 Exportar Trending"):
+                    if st.button("📥 Exportar Trending", key="export_trending"):
                         df = pd.DataFrame(trending_videos)
                         csv = df.to_csv(index=False)
                         st.download_button(
                             label="⬇️ Download CSV Trending",
                             data=csv,
                             file_name=f"trending_real_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                            mime="text/csv"
+                            mime="text/csv",
+                            key="download_trending"
                         )
                     
                     # Resultados
@@ -481,65 +485,70 @@ with tab2:
     with col2:
         max_search_results = st.selectbox("📊 Máx resultados:", [20, 30, 50, 75], index=2)
     
-    if st.button("🕷️ SCRAPE BUSCA AGORA!", type="primary") and search_query:
-        with st.spinner(f'🔄 Fazendo scraping da busca: "{search_query}"...'):
-            search_videos = scraper.scrape_search_results(search_query, max_search_results)
-            
-            if search_videos:
-                # Estatísticas
-                viral_candidates = sum(1 for v in search_videos if is_viral_candidate(v))
-                recent_videos = sum(1 for v in search_videos if is_recent_video(v.get('published_time', '')))
-                
-                # Métricas
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.markdown(f"""
-                    <div class="metric-container">
-                        <h3 style="margin: 0; color: #333;">📊 {len(search_videos)}</h3>
-                        <p style="margin: 0; color: #666;">Resultados</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col2:
-                    st.markdown(f"""
-                    <div class="metric-container">
-                        <h3 style="margin: 0; color: #FF6B6B;">🔥 {viral_candidates}</h3>
-                        <p style="margin: 0; color: #666;">Candidatos Virais</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col3:
-                    st.markdown(f"""
-                    <div class="metric-container">
-                        <h3 style="margin: 0; color: #4ECDC4;">⚡ {recent_videos}</h3>
-                        <p style="margin: 0; color: #666;">Recentes</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                # Export
-                if st.button("📥 Exportar Busca"):
-                    df = pd.DataFrame(search_videos)
-                    csv = df.to_csv(index=False)
-                    st.download_button(
-                        label="⬇️ Download CSV Busca",
-                        data=csv,
-                        file_name=f"busca_real_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                        mime="text/csv"
-                    )
-                
-                # Resultados
-                st.markdown("---")
-                st.markdown(f"## 🔍 Resultados para: '{search_query}'")
-                
-                for video in search_videos:
-                    display_scraped_video_card(video)
-                    st.markdown("---")
-            
-            else:
-                st.error("❌ Nenhum resultado encontrado ou erro no scraping.")
+    # Botão único para busca
+    scrape_search = st.button("🔍 FAZER BUSCA REAL!", type="primary", key="search_button")
     
-    elif st.button("🕷️ SCRAPE BUSCA AGORA!", type="primary") and not search_query:
-        st.warning("⚠️ Digite algo para buscar!")
+    if scrape_search:
+        if search_query:
+            with st.spinner(f'🔄 Fazendo scraping da busca: "{search_query}"...'):
+                search_videos = scraper.scrape_search_results(search_query, max_search_results)
+                
+                if search_videos:
+                    # Estatísticas
+                    viral_candidates = sum(1 for v in search_videos if is_viral_candidate(v))
+                    recent_videos = sum(1 for v in search_videos if is_recent_video(v.get('published_time', '')))
+                    
+                    # Métricas
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.markdown(f"""
+                        <div class="metric-container">
+                            <h3 style="margin: 0; color: #333;">📊 {len(search_videos)}</h3>
+                            <p style="margin: 0; color: #666;">Resultados</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    with col2:
+                        st.markdown(f"""
+                        <div class="metric-container">
+                            <h3 style="margin: 0; color: #FF6B6B;">🔥 {viral_candidates}</h3>
+                            <p style="margin: 0; color: #666;">Candidatos Virais</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    with col3:
+                        st.markdown(f"""
+                        <div class="metric-container">
+                            <h3 style="margin: 0; color: #4ECDC4;">⚡ {recent_videos}</h3>
+                            <p style="margin: 0; color: #666;">Recentes</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    # Export
+                    if st.button("📥 Exportar Busca", key="export_search"):
+                        df = pd.DataFrame(search_videos)
+                        csv = df.to_csv(index=False)
+                        st.download_button(
+                            label="⬇️ Download CSV Busca",
+                            data=csv,
+                            file_name=f"busca_real_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                            mime="text/csv",
+                            key="download_search"
+                        )
+                    
+                    # Resultados
+                    st.markdown("---")
+                    st.markdown(f"## 🔍 Resultados para: '{search_query}'")
+                    
+                    for video in search_videos:
+                        display_scraped_video_card(video)
+                        st.markdown("---")
+                
+                else:
+                    st.error("❌ Nenhum resultado encontrado ou erro no scraping.")
+        
+        else:
+            st.warning("⚠️ Digite algo para buscar!")
 
 # Rodapé
 st.markdown("---")

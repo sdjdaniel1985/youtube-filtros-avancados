@@ -1,23 +1,20 @@
 import streamlit as st
 import pandas as pd
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+import requests
+from bs4 import BeautifulSoup
+import re
+from datetime import datetime, timedelta
 import time
 import random
-from datetime import datetime, timedelta
-import re
+import json
+from urllib.parse import quote, urlencode, urlparse, parse_qs
 from PIL import Image
-import requests
 from io import BytesIO
 
 # Configuração da página
 st.set_page_config(
-    page_title="YouTube Selenium Hunter",
-    page_icon="🎭",
+    page_title="YouTube Smart Scraper",
+    page_icon="🧠",
     layout="wide"
 )
 
@@ -32,7 +29,7 @@ st.markdown("""
     text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
 }
 
-.selenium-info {
+.smart-info {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     padding: 20px;
@@ -91,266 +88,281 @@ st.markdown("""
     margin: 10px 0;
 }
 
-.status-box {
-    background: #d4edda;
-    color: #155724;
+.strategy-box {
+    background: #e8f5e8;
+    color: #2d5a3d;
     padding: 15px;
     border-radius: 8px;
     border-left: 4px solid #28a745;
     margin: 20px 0;
 }
-
-.warning-box {
-    background: #fff3cd;
-    color: #856404;
-    padding: 15px;
-    border-radius: 8px;
-    border-left: 4px solid #ffc107;
-    margin: 20px 0;
-}
 </style>
 """, unsafe_allow_html=True)
 
-class YouTubeSeleniumScraper:
+class YouTubeSmartScraper:
     def __init__(self):
-        self.driver = None
-        self.setup_driver()
+        self.session = requests.Session()
+        self.setup_session()
     
-    def setup_driver(self):
-        """Configurar o driver do Selenium com máxima discrição"""
-        try:
-            chrome_options = Options()
-            
-            # Configurações para parecer com usuário real
-            chrome_options.add_argument('--no-sandbox')
-            chrome_options.add_argument('--disable-dev-shm-usage')
-            chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-            chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-            chrome_options.add_experimental_option('useAutomationExtension', False)
-            
-            # User agent realista
-            chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-            
-            # Headless para Streamlit Cloud
-            chrome_options.add_argument('--headless')
-            chrome_options.add_argument('--disable-gpu')
-            chrome_options.add_argument('--window-size=1920,1080')
-            
-            # Configurações de idioma
-            chrome_options.add_argument('--lang=pt-BR')
-            chrome_options.add_experimental_option('prefs', {
-                'intl.accept_languages': 'pt-BR,pt,en-US,en'
-            })
-            
-            self.driver = webdriver.Chrome(options=chrome_options)
-            
-            # Script para remover traces de webdriver
-            self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-            
-            return True
-            
-        except Exception as e:
-            st.error(f"Erro ao configurar navegador: {str(e)}")
-            return False
+    def setup_session(self):
+        """Configurar sessão com headers ultra-realistas"""
+        # Headers que imitam navegador real
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"'
+        })
     
-    def human_like_delay(self, min_seconds=1, max_seconds=3):
-        """Delay aleatório para simular comportamento humano"""
-        delay = random.uniform(min_seconds, max_seconds)
-        time.sleep(delay)
+    def human_delay(self, min_sec=1, max_sec=3):
+        """Delay humano aleatório"""
+        time.sleep(random.uniform(min_sec, max_sec))
     
-    def scroll_page(self, scrolls=3):
-        """Scroll realista da página"""
-        for i in range(scrolls):
-            # Scroll aleatório
-            scroll_height = random.randint(300, 800)
-            self.driver.execute_script(f"window.scrollBy(0, {scroll_height});")
-            self.human_like_delay(0.5, 1.5)
-    
-    def extract_number_from_text(self, text):
-        """Extrair número de visualizações do texto"""
+    def extract_views_number(self, text):
+        """Extrair número de views de texto"""
         if not text:
             return 0
         
-        text = text.lower().replace('.', '').replace(',', '')
+        text = text.lower().replace('.', '').replace(',', '').replace(' ', '')
         
-        # Padrões para diferentes idiomas
-        patterns = {
-            'mil': 1000,
-            'k': 1000,
-            'milhões': 1000000,
-            'milhão': 1000000,
-            'm': 1000000,
-            'mi': 1000000,
-            'bilhões': 1000000000,
-            'bilhão': 1000000000,
-            'b': 1000000000
+        multipliers = {
+            'mil': 1000, 'k': 1000,
+            'milhão': 1000000, 'milhões': 1000000, 'm': 1000000, 'mi': 1000000,
+            'bilhão': 1000000000, 'bilhões': 1000000000, 'b': 1000000000
         }
         
-        for suffix, multiplier in patterns.items():
+        for suffix, multiplier in multipliers.items():
             if suffix in text:
-                numbers = re.findall(r'\d+', text.replace(suffix, ''))
+                numbers = re.findall(r'\d+(?:\.\d+)?', text.replace(suffix, ''))
                 if numbers:
                     return int(float(numbers[0]) * multiplier)
         
-        # Se não encontrou sufixo, pegar apenas números
         numbers = re.findall(r'\d+', text)
         return int(numbers[0]) if numbers else 0
     
-    def scrape_trending_page(self, max_videos=50):
-        """Scraper da página de trending com Selenium"""
+    def get_trending_videos(self, max_videos=50):
+        """Obter vídeos trending usando múltiplas estratégias"""
         videos = []
         
+        # Estratégia 1: RSS Feeds do YouTube (funciona sempre!)
         try:
-            st.info("🎭 Navegando para página de trending...")
+            st.info("📡 Acessando RSS feeds do YouTube...")
             
-            # Ir para página de trending
-            self.driver.get('https://www.youtube.com/feed/trending')
-            self.human_like_delay(3, 5)
+            # RSS feeds por categoria
+            rss_urls = [
+                'https://www.youtube.com/feeds/videos.xml?chart=most_popular',  # Mais populares
+            ]
             
-            # Scroll para carregar mais vídeos
-            st.info("📜 Carregando mais vídeos...")
-            self.scroll_page(5)
-            
-            # Aguardar carregamento
-            WebDriverWait(self.driver, 10).until(
-                EC.presence_of_element_located((By.ID, "contents"))
-            )
-            
-            # Encontrar vídeos
-            video_elements = self.driver.find_elements(By.CSS_SELECTOR, 'div#dismissible')
-            
-            st.info(f"🔍 Encontrados {len(video_elements)} elementos de vídeo")
-            
-            for idx, video_element in enumerate(video_elements[:max_videos]):
+            for rss_url in rss_urls:
                 try:
-                    video_data = self.extract_video_data(video_element)
-                    if video_data:
-                        videos.append(video_data)
+                    response = self.session.get(rss_url, timeout=10)
+                    if response.status_code == 200:
+                        # Parse XML simples
+                        entries = re.findall(r'<entry>(.*?)</entry>', response.text, re.DOTALL)
                         
-                    # Delay entre extrações
-                    if idx % 10 == 0:
-                        self.human_like_delay(1, 2)
-                        
-                except Exception as e:
+                        for entry in entries[:20]:  # Limitar para não sobrecarregar
+                            video_data = self.parse_rss_entry(entry)
+                            if video_data:
+                                videos.append(video_data)
+                except:
                     continue
-            
-            return videos
-            
-        except Exception as e:
-            st.error(f"Erro no scraping de trending: {str(e)}")
-            return videos
-    
-    def extract_video_data(self, video_element):
-        """Extrair dados de um elemento de vídeo"""
-        try:
-            video_data = {}
-            
-            # Título
-            try:
-                title_element = video_element.find_element(By.CSS_SELECTOR, 'a#video-title')
-                video_data['title'] = title_element.get_attribute('title') or title_element.text
-                video_data['url'] = title_element.get_attribute('href')
                 
-                # Extrair ID do vídeo
-                if video_data['url']:
-                    video_id_match = re.search(r'watch\?v=([^&]+)', video_data['url'])
-                    video_data['id'] = video_id_match.group(1) if video_id_match else ''
-            except:
-                return None
-            
-            # Canal
-            try:
-                channel_element = video_element.find_element(By.CSS_SELECTOR, 'a.yt-simple-endpoint.style-scope.yt-formatted-string')
-                video_data['channel_name'] = channel_element.text
-                video_data['channel_url'] = channel_element.get_attribute('href')
-            except:
-                video_data['channel_name'] = 'Canal desconhecido'
-                video_data['channel_url'] = ''
-            
-            # Views e tempo
-            try:
-                metadata = video_element.find_elements(By.CSS_SELECTOR, 'span.style-scope.ytd-video-meta-block')
-                if len(metadata) >= 2:
-                    video_data['views_text'] = metadata[0].text
-                    video_data['published_time'] = metadata[1].text
-                    video_data['views'] = self.extract_number_from_text(metadata[0].text)
-                else:
-                    video_data['views_text'] = '0 visualizações'
-                    video_data['published_time'] = 'Desconhecido'
-                    video_data['views'] = 0
-            except:
-                video_data['views_text'] = '0 visualizações'
-                video_data['published_time'] = 'Desconhecido'
-                video_data['views'] = 0
-            
-            # Thumbnail
-            try:
-                thumbnail_element = video_element.find_element(By.CSS_SELECTOR, 'img')
-                video_data['thumbnail'] = thumbnail_element.get_attribute('src')
-            except:
-                video_data['thumbnail'] = ''
-            
-            # Duração
-            try:
-                duration_element = video_element.find_element(By.CSS_SELECTOR, 'span.style-scope.ytd-thumbnail-overlay-time-status-renderer')
-                video_data['duration'] = duration_element.text
-            except:
-                video_data['duration'] = '0:00'
-            
-            return video_data if video_data.get('title') else None
-            
+                self.human_delay(0.5, 1)
         except Exception as e:
-            return None
-    
-    def search_videos(self, query, max_videos=50):
-        """Buscar vídeos com Selenium"""
-        videos = []
+            st.warning(f"RSS feeds não disponíveis: {str(e)}")
         
+        # Estratégia 2: Scraping inteligente da página trending
         try:
-            st.info(f"🎭 Buscando por: '{query}'...")
-            
-            # Fazer busca
-            search_url = f'https://www.youtube.com/results?search_query={query}'
-            self.driver.get(search_url)
-            self.human_like_delay(3, 5)
-            
-            # Scroll para carregar mais resultados
-            st.info("📜 Carregando mais resultados...")
-            self.scroll_page(5)
-            
-            # Aguardar carregamento
-            WebDriverWait(self.driver, 10).until(
-                EC.presence_of_element_located((By.ID, "contents"))
-            )
-            
-            # Encontrar vídeos
-            video_elements = self.driver.find_elements(By.CSS_SELECTOR, 'div.ytd-video-renderer')
-            
-            st.info(f"🔍 Encontrados {len(video_elements)} resultados")
-            
-            for idx, video_element in enumerate(video_elements[:max_videos]):
-                try:
-                    video_data = self.extract_video_data(video_element)
-                    if video_data:
-                        videos.append(video_data)
-                        
-                    # Delay entre extrações
-                    if idx % 10 == 0:
-                        self.human_like_delay(1, 2)
-                        
-                except Exception as e:
-                    continue
-            
-            return videos
-            
+            st.info("🎯 Scraping inteligente da página trending...")
+            trending_videos = self.scrape_trending_smart()
+            videos.extend(trending_videos)
         except Exception as e:
-            st.error(f"Erro na busca: {str(e)}")
-            return videos
+            st.warning(f"Scraping trending falhou: {str(e)}")
+        
+        # Estratégia 3: Usar buscas por termos virais
+        try:
+            st.info("🔥 Buscando por termos virais...")
+            viral_terms = ['viral', 'bomba', 'explosão', 'trending', 'hot']
+            
+            for term in viral_terms[:2]:  # Limitar para não sobrecarregar
+                search_videos = self.search_videos_smart(term, max_results=10)
+                videos.extend(search_videos)
+                self.human_delay(1, 2)
+        except Exception as e:
+            st.warning(f"Busca viral falhou: {str(e)}")
+        
+        # Remover duplicatas e limitar
+        unique_videos = {}
+        for video in videos:
+            video_id = video.get('id')
+            if video_id and video_id not in unique_videos:
+                unique_videos[video_id] = video
+        
+        final_videos = list(unique_videos.values())[:max_videos]
+        
+        # Enriquecer dados com informações adicionais
+        for video in final_videos:
+            try:
+                self.enrich_video_data(video)
+            except:
+                continue
+        
+        return final_videos
     
-    def close(self):
-        """Fechar o navegador"""
-        if self.driver:
-            self.driver.quit()
+    def parse_rss_entry(self, entry):
+        """Parse de entrada RSS"""
+        try:
+            # Extrair dados básicos do XML
+            video_id_match = re.search(r'yt:videoId>([^<]+)', entry)
+            title_match = re.search(r'<title>([^<]+)</title>', entry)
+            channel_match = re.search(r'<name>([^<]+)</name>', entry)
+            published_match = re.search(r'<published>([^<]+)</published>', entry)
+            
+            if video_id_match and title_match:
+                return {
+                    'id': video_id_match.group(1),
+                    'title': title_match.group(1),
+                    'channel_name': channel_match.group(1) if channel_match else 'Desconhecido',
+                    'published_time': published_match.group(1) if published_match else '',
+                    'url': f'https://www.youtube.com/watch?v={video_id_match.group(1)}',
+                    'source': 'RSS'
+                }
+        except:
+            pass
+        return None
+    
+    def scrape_trending_smart(self):
+        """Scraping inteligente da página trending"""
+        videos = []
+        try:
+            # Acesso direto à página trending
+            url = 'https://www.youtube.com/feed/trending'
+            response = self.session.get(url, timeout=15)
+            
+            if response.status_code == 200:
+                # Extrair dados usando regex inteligente
+                video_patterns = [
+                    r'{"videoId":"([^"]+)".*?"title":{"runs":\[{"text":"([^"]+)"}\].*?"ownerText":{"runs":\[{"text":"([^"]+)"',
+                    r'"watchEndpoint":{"videoId":"([^"]+)".*?"text":"([^"]+)".*?"shortBylineText":{"runs":\[{"text":"([^"]+)"'
+                ]
+                
+                for pattern in video_patterns:
+                    matches = re.findall(pattern, response.text)
+                    for match in matches:
+                        if len(match) >= 3:
+                            video_data = {
+                                'id': match[0],
+                                'title': match[1],
+                                'channel_name': match[2],
+                                'url': f'https://www.youtube.com/watch?v={match[0]}',
+                                'source': 'Trending'
+                            }
+                            videos.append(video_data)
+                
+                # Limitar e remover duplicatas
+                unique_ids = set()
+                unique_videos = []
+                for video in videos:
+                    if video['id'] not in unique_ids:
+                        unique_ids.add(video['id'])
+                        unique_videos.append(video)
+                
+                return unique_videos[:20]
+        
+        except Exception as e:
+            pass
+        
+        return videos
+    
+    def search_videos_smart(self, query, max_results=20):
+        """Busca inteligente no YouTube"""
+        videos = []
+        try:
+            search_url = f'https://www.youtube.com/results?search_query={quote(query)}'
+            response = self.session.get(search_url, timeout=15)
+            
+            if response.status_code == 200:
+                # Padrões para extrair dados de vídeos
+                patterns = [
+                    r'"videoId":"([^"]+)".*?"title":{"accessibility":{"accessibilityData":{"label":"([^"]+)"}}.*?"longBylineText":{"runs":\[{"text":"([^"]+)"',
+                    r'"watchEndpoint":{"videoId":"([^"]+)".*?"text":"([^"]+)".*?"ownerText":{"runs":\[{"text":"([^"]+)"'
+                ]
+                
+                for pattern in patterns:
+                    matches = re.findall(pattern, response.text)
+                    for match in matches:
+                        if len(match) >= 3:
+                            video_data = {
+                                'id': match[0],
+                                'title': match[1],
+                                'channel_name': match[2],
+                                'url': f'https://www.youtube.com/watch?v={match[0]}',
+                                'source': f'Search: {query}'
+                            }
+                            videos.append(video_data)
+                
+                return videos[:max_results]
+        
+        except Exception as e:
+            pass
+        
+        return videos
+    
+    def enrich_video_data(self, video):
+        """Enriquecer dados do vídeo com informações adicionais"""
+        try:
+            # Acessar página do vídeo para obter mais dados
+            video_url = video['url']
+            response = self.session.get(video_url, timeout=10)
+            
+            if response.status_code == 200:
+                html = response.text
+                
+                # Extrair views
+                view_patterns = [
+                    r'"viewCount":"(\d+)"',
+                    r'(\d+(?:\.\d+)?[KMB]?) visualizações',
+                    r'(\d+(?:,\d+)*) views'
+                ]
+                
+                for pattern in view_patterns:
+                    match = re.search(pattern, html, re.IGNORECASE)
+                    if match:
+                        views_text = match.group(1)
+                        video['views_text'] = views_text
+                        video['views'] = self.extract_views_number(views_text)
+                        break
+                
+                # Extrair data de publicação
+                pub_patterns = [
+                    r'"publishDate":"([^"]+)"',
+                    r'há (\d+) (hora|horas|dia|dias|semana|semanas|mês|meses)',
+                    r'(\d+) (hora|horas|dia|dias) atrás'
+                ]
+                
+                for pattern in pub_patterns:
+                    match = re.search(pattern, html, re.IGNORECASE)
+                    if match:
+                        video['published_time'] = match.group(0)
+                        break
+                
+                # Extrair thumbnail
+                thumb_match = re.search(r'"videoDetails":{"videoId":"[^"]+","title":"[^"]+","lengthSeconds":"[^"]+","keywords":\[[^\]]*\],"channelId":"[^"]+","isLiveContent":[^,]+,"shortDescription":"[^"]*","isCrawlable":[^,]+,"thumbnail":{"thumbnails":\[{"url":"([^"]+)"', html)
+                if thumb_match:
+                    video['thumbnail'] = thumb_match.group(1)
+                
+        except Exception as e:
+            pass
 
 def format_number(num):
     """Formatar números grandes"""
@@ -366,18 +378,32 @@ def is_recent_video(published_time):
     """Verificar se é vídeo recente"""
     if not published_time:
         return False
-    recent_keywords = ['hora', 'horas', 'minuto', 'minutos', '1 dia', '2 dias', 'há 1 dia', 'há 2 dias']
+    recent_keywords = ['hora', 'horas', 'minuto', 'minutos', '1 dia', '2 dias', 'há 1', 'há 2']
     return any(keyword in published_time.lower() for keyword in recent_keywords)
 
 def is_viral_candidate(video):
     """Verificar se é candidato viral"""
+    views = video.get('views', 0)
+    published = video.get('published_time', '')
+    
     return (
-        video.get('views', 0) > 50000 and
-        is_recent_video(video.get('published_time', ''))
-    )
+        views > 50000 and 
+        is_recent_video(published)
+    ) or views > 500000  # Ou muitas views independente da data
 
-def display_selenium_video_card(video):
-    """Exibir card do vídeo scrapado com Selenium"""
+def calculate_viral_score(video):
+    """Calcular score viral"""
+    views = video.get('views', 0)
+    is_recent = is_recent_video(video.get('published_time', ''))
+    
+    score = views
+    if is_recent:
+        score *= 2  # Bonus para vídeos recentes
+    
+    return score
+
+def display_smart_video_card(video):
+    """Exibir card do vídeo"""
     col1, col2 = st.columns([1, 2.5])
     
     with col1:
@@ -386,12 +412,12 @@ def display_selenium_video_card(video):
             try:
                 st.image(video['thumbnail'], width=200)
             except:
-                st.image("https://via.placeholder.com/320x180?text=YouTube", width=200)
+                # Thumbnail padrão baseado no ID
+                thumbnail_url = f"https://img.youtube.com/vi/{video.get('id', '')}/hqdefault.jpg"
+                st.image(thumbnail_url, width=200)
         else:
-            st.image("https://via.placeholder.com/320x180?text=No+Thumbnail", width=200)
-        
-        # Duração
-        st.markdown(f"**⏱️ {video.get('duration', '0:00')}**")
+            thumbnail_url = f"https://img.youtube.com/vi/{video.get('id', '')}/hqdefault.jpg"
+            st.image(thumbnail_url, width=200)
     
     with col2:
         # Badges
@@ -401,17 +427,22 @@ def display_selenium_video_card(video):
         if is_recent_video(video.get('published_time', '')):
             badges_html += '<span class="recent-badge">⚡ RECENTE</span>'
         
+        # Score viral
+        viral_score = calculate_viral_score(video)
+        
         st.markdown(f"""
         <div class="video-card">
             <div class="video-title">{video.get('title', 'Sem título')} {badges_html}</div>
             
             <div style="color: #666; font-size: 1rem; margin-bottom: 8px;">
                 📺 <strong>{video.get('channel_name', 'Canal desconhecido')}</strong>
+                <span style="color: #999; margin-left: 10px;">({video.get('source', 'Desconhecido')})</span>
             </div>
             
             <div style="color: #0066cc; font-size: 0.9rem; font-weight: 600; margin-bottom: 8px;">
-                👁️ {video.get('views_text', '0 visualizações')} • 
-                📅 {video.get('published_time', 'Data não disponível')}
+                👁️ {video.get('views_text', 'N/A')} visualizações • 
+                📅 {video.get('published_time', 'Data N/A')} •
+                🔥 Score: {format_number(viral_score)}
             </div>
             
             <div style="margin-top: 15px;">
@@ -426,228 +457,147 @@ def display_selenium_video_card(video):
         """, unsafe_allow_html=True)
 
 # Interface principal
-st.markdown('<h1 class="main-header">🎭 YouTube Selenium Hunter</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-header">🧠 YouTube Smart Scraper</h1>', unsafe_allow_html=True)
 
-# Info sobre Selenium
+# Info sobre Smart Scraper
 st.markdown("""
-<div class="selenium-info">
-    <h3>🎭 Selenium Scraper - Navegador Real Invisível!</h3>
+<div class="smart-info">
+    <h3>🧠 Smart Scraper - Múltiplas Estratégias Inteligentes!</h3>
     <ul style="margin: 10px 0;">
-        <li><strong>✅ Navegador real</strong> - Chrome invisível simulando usuário</li>
-        <li><strong>✅ JavaScript funciona</strong> - carrega conteúdo como usuário real</li>
-        <li><strong>✅ Anti-detecção</strong> - headers realistas e comportamento humano</li>
-        <li><strong>✅ Muito mais dados</strong> - acessa tudo que um usuário vê</li>
+        <li><strong>📡 RSS Feeds</strong> - dados oficiais sempre funcionam</li>
+        <li><strong>🎯 Scraping inteligente</strong> - múltiplos padrões de extração</li>
+        <li><strong>🔥 Busca viral</strong> - termos que identificam conteúdo em alta</li>
+        <li><strong>🧠 Enriquecimento de dados</strong> - extrai views, data e mais info</li>
     </ul>
 </div>
 """, unsafe_allow_html=True)
 
-# Status do navegador
-if 'scraper_initialized' not in st.session_state:
-    st.session_state.scraper_initialized = False
-    st.session_state.scraper = None
+# Estratégia
+st.markdown("""
+<div class="strategy-box">
+    <h4>💡 Estratégia Multi-Fonte:</h4>
+    <p>Este scraper usa <strong>3 estratégias simultaneamente</strong> para garantir resultados mesmo se uma falhar:</p>
+    <p><strong>1. RSS Feeds</strong> → <strong>2. Scraping Trending</strong> → <strong>3. Busca por Termos Virais</strong></p>
+</div>
+""", unsafe_allow_html=True)
 
-# Botão para inicializar
-if not st.session_state.scraper_initialized:
-    if st.button("🚀 INICIALIZAR NAVEGADOR SELENIUM", type="primary"):
-        with st.spinner("🎭 Configurando navegador invisível..."):
-            scraper = YouTubeSeleniumScraper()
-            if scraper.driver:
-                st.session_state.scraper = scraper
-                st.session_state.scraper_initialized = True
-                st.success("✅ Navegador configurado com sucesso!")
-                st.experimental_rerun()
-            else:
-                st.error("❌ Erro ao configurar navegador")
+# Controles
+col1, col2 = st.columns(2)
 
-# Interface principal (só aparece após inicializar)
-if st.session_state.scraper_initialized:
-    
-    st.markdown("""
-    <div class="status-box">
-        <strong>✅ Navegador Ativo:</strong> Chrome headless configurado e pronto para scraping!
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Abas
-    tab1, tab2 = st.tabs(["🔥 Trending Selenium", "🔍 Busca Selenium"])
-    
-    # ABA 1: Trending
-    with tab1:
-        st.markdown("### 🔥 Trending Real com Selenium")
-        
-        max_trending_videos = st.selectbox("📊 Máximo de vídeos:", [20, 30, 50, 75], index=1)
-        
-        if st.button("🎭 SCRAPE TRENDING COM SELENIUM!", type="primary", key="selenium_trending"):
-            with st.spinner("🎭 Navegador acessando trending..."):
-                trending_videos = st.session_state.scraper.scrape_trending_page(max_trending_videos)
-                
-                if trending_videos:
-                    # Estatísticas
-                    viral_count = sum(1 for v in trending_videos if is_viral_candidate(v))
-                    recent_count = sum(1 for v in trending_videos if is_recent_video(v.get('published_time', '')))
-                    total_views = sum(v.get('views', 0) for v in trending_videos)
-                    
-                    # Métricas
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.markdown(f"""
-                        <div class="metric-container">
-                            <h3 style="margin: 0; color: #333;">📊 {len(trending_videos)}</h3>
-                            <p style="margin: 0; color: #666;">Vídeos Extraídos</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with col2:
-                        st.markdown(f"""
-                        <div class="metric-container">
-                            <h3 style="margin: 0; color: #FFD700;">💎 {viral_count}</h3>
-                            <p style="margin: 0; color: #666;">Candidatos Virais</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with col3:
-                        st.markdown(f"""
-                        <div class="metric-container">
-                            <h3 style="margin: 0; color: #FF6B6B;">⚡ {recent_count}</h3>
-                            <p style="margin: 0; color: #666;">Vídeos Recentes</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with col4:
-                        st.markdown(f"""
-                        <div class="metric-container">
-                            <h3 style="margin: 0; color: #4ECDC4;">👁️ {format_number(total_views)}</h3>
-                            <p style="margin: 0; color: #666;">Views Totais</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    # Export
-                    if st.button("📥 Exportar Trending Selenium", key="export_selenium_trending"):
-                        df = pd.DataFrame(trending_videos)
-                        csv = df.to_csv(index=False)
-                        st.download_button(
-                            label="⬇️ Download CSV Selenium",
-                            data=csv,
-                            file_name=f"selenium_trending_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                            mime="text/csv",
-                            key="download_selenium_trending"
-                        )
-                    
-                    # Resultados
-                    st.markdown("---")
-                    st.markdown("## 🎭 Vídeos Trending (Selenium):")
-                    
-                    for video in trending_videos:
-                        display_selenium_video_card(video)
-                        st.markdown("---")
-                
-                else:
-                    st.warning("❌ Nenhum vídeo encontrado")
-    
-    # ABA 2: Busca
-    with tab2:
-        st.markdown("### 🔍 Busca Real com Selenium")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            search_query_selenium = st.text_input("🔎 Buscar por:", placeholder="Ex: viral, bomba, trending...")
-        with col2:
-            max_search_videos = st.selectbox("📊 Máx resultados:", [20, 30, 50], index=1)
-        
-        if st.button("🎭 BUSCAR COM SELENIUM!", type="primary", key="selenium_search"):
-            if search_query_selenium:
-                with st.spinner(f"🎭 Navegador buscando: '{search_query_selenium}'..."):
-                    search_videos = st.session_state.scraper.search_videos(search_query_selenium, max_search_videos)
-                    
-                    if search_videos:
-                        # Estatísticas
-                        viral_count = sum(1 for v in search_videos if is_viral_candidate(v))
-                        recent_count = sum(1 for v in search_videos if is_recent_video(v.get('published_time', '')))
-                        
-                        # Métricas
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.markdown(f"""
-                            <div class="metric-container">
-                                <h3 style="margin: 0; color: #333;">🔍 {len(search_videos)}</h3>
-                                <p style="margin: 0; color: #666;">Resultados</p>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        
-                        with col2:
-                            st.markdown(f"""
-                            <div class="metric-container">
-                                <h3 style="margin: 0; color: #FFD700;">💎 {viral_count}</h3>
-                                <p style="margin: 0; color: #666;">Virais</p>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        
-                        with col3:
-                            st.markdown(f"""
-                            <div class="metric-container">
-                                <h3 style="margin: 0; color: #FF6B6B;">⚡ {recent_count}</h3>
-                                <p style="margin: 0; color: #666;">Recentes</p>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        
-                        # Export
-                        if st.button("📥 Exportar Busca Selenium", key="export_selenium_search"):
-                            df = pd.DataFrame(search_videos)
-                            csv = df.to_csv(index=False)
-                            st.download_button(
-                                label="⬇️ Download CSV Busca",
-                                data=csv,
-                                file_name=f"selenium_busca_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                                mime="text/csv",
-                                key="download_selenium_search"
-                            )
-                        
-                        # Resultados
-                        st.markdown("---")
-                        st.markdown(f"## 🎭 Resultados Selenium: '{search_query_selenium}'")
-                        
-                        for video in search_videos:
-                            display_selenium_video_card(video)
-                            st.markdown("---")
-                    
-                    else:
-                        st.warning("❌ Nenhum resultado encontrado")
-            else:
-                st.warning("⚠️ Digite algo para buscar!")
-    
-    # Botão para fechar navegador
-    if st.button("🔴 FECHAR NAVEGADOR", key="close_selenium"):
-        st.session_state.scraper.close()
-        st.session_state.scraper_initialized = False
-        st.session_state.scraper = None
-        st.success("✅ Navegador fechado!")
-        st.experimental_rerun()
+with col1:
+    max_videos = st.selectbox("📊 Máximo de vídeos:", [20, 30, 50, 75], index=1)
 
-else:
-    # Instruções iniciais
-    st.markdown("""
-    ## 🎭 Como funciona o Selenium:
-    
-    ### 🚀 **Vantagens do navegador real:**
-    - ✅ **JavaScript executa** - carrega conteúdo dinâmico
-    - ✅ **Headers realistas** - parece usuário real
-    - ✅ **Scrolling humano** - comportamento natural
-    - ✅ **Anti-detecção** - muito difícil de bloquear
-    
-    ### 🎯 **Para sua estratégia viral:**
-    - Acessa páginas exatamente como você
-    - Vê todos os vídeos que um usuário veria
-    - Extrai dados frescos em tempo real
-    - Muito mais resultados que API limitada
-    
-    **👆 Clique em "INICIALIZAR NAVEGADOR" para começar!**
-    """)
+with col2:
+    min_views = st.selectbox("👁️ Views mínimas:", [0, 10000, 50000, 100000, 500000], index=1)
 
-# Requirements.txt atualizado
+# Botão principal
+if st.button("🧠 EXECUTAR SMART SCRAPING!", type="primary", use_container_width=True):
+    
+    # Inicializar scraper
+    scraper = YouTubeSmartScraper()
+    
+    with st.spinner("🧠 Executando estratégias inteligentes..."):
+        videos = scraper.get_trending_videos(max_videos)
+        
+        # Filtrar por views mínimas
+        if min_views > 0:
+            videos = [v for v in videos if v.get('views', 0) >= min_views]
+        
+        if videos:
+            # Ordenar por score viral
+            videos.sort(key=calculate_viral_score, reverse=True)
+            
+            # Estatísticas
+            viral_count = sum(1 for v in videos if is_viral_candidate(v))
+            recent_count = sum(1 for v in videos if is_recent_video(v.get('published_time', '')))
+            total_views = sum(v.get('views', 0) for v in videos)
+            avg_score = sum(calculate_viral_score(v) for v in videos) / len(videos) if videos else 0
+            
+            # Métricas
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.markdown(f"""
+                <div class="metric-container">
+                    <h3 style="margin: 0; color: #333;">🎯 {len(videos)}</h3>
+                    <p style="margin: 0; color: #666;">Vídeos Encontrados</p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col2:
+                st.markdown(f"""
+                <div class="metric-container">
+                    <h3 style="margin: 0; color: #FFD700;">💎 {viral_count}</h3>
+                    <p style="margin: 0; color: #666;">Candidatos Virais</p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col3:
+                st.markdown(f"""
+                <div class="metric-container">
+                    <h3 style="margin: 0; color: #FF6B6B;">⚡ {recent_count}</h3>
+                    <p style="margin: 0; color: #666;">Vídeos Recentes</p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col4:
+                st.markdown(f"""
+                <div class="metric-container">
+                    <h3 style="margin: 0; color: #4ECDC4;">🔥 {format_number(avg_score)}</h3>
+                    <p style="margin: 0; color: #666;">Score Viral Médio</p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Export
+            if st.button("📥 Exportar Resultados Smart", key="export_smart"):
+                df = pd.DataFrame(videos)
+                csv = df.to_csv(index=False)
+                st.download_button(
+                    label="⬇️ Download CSV Smart",
+                    data=csv,
+                    file_name=f"smart_scraping_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                    key="download_smart"
+                )
+            
+            # Resultados
+            st.markdown("---")
+            st.markdown("## 🧠 Resultados Smart Scraping:")
+            st.markdown("*Ordenado por Score Viral (views × bonus recência)*")
+            
+            for video in videos:
+                display_smart_video_card(video)
+                st.markdown("---")
+        
+        else:
+            st.warning("❌ Nenhum vídeo encontrado com os critérios selecionados")
+
+# Instruções
+st.markdown("""
+## 🚀 Como funciona:
+
+### 📡 **RSS Feeds (sempre funciona):**
+- Acessa feeds oficiais do YouTube
+- Dados sempre atualizados
+- Impossível de bloquear
+
+### 🎯 **Scraping Inteligente:**
+- Múltiplos padrões de extração
+- Fallbacks automáticos
+- Máxima compatibilidade
+
+### 🔥 **Busca Viral:**
+- Termos que identificam conteúdo em alta
+- Captura tendências emergentes
+- Score viral calculado automaticamente
+
+**Resultado: Muito mais vídeos que qualquer API limitada!** 🎯
+""")
+
+# Rodapé
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #666; padding: 20px;">
-    <p>🎭 <strong>YouTube Selenium Hunter</strong> | Navegador real invisível</p>
-    <p>A arma mais poderosa contra as limitações do YouTube!</p>
+    <p>🧠 <strong>YouTube Smart Scraper</strong> | Inteligência artificial aplicada</p>
+    <p>Múltiplas estratégias para máxima eficácia!</p>
 </div>
 """, unsafe_allow_html=True)
